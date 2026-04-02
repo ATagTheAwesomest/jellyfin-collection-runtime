@@ -40,18 +40,36 @@
         return result;
     }
 
-    function getItemIdsFromCards() {
-        // Scope to the active/visible page to avoid picking up cards from other SPA pages
-        const activePage = document.querySelector('.page:not(.hide)');
-        const root = activePage || document;
-        const cards = root.querySelectorAll('.collectionItemsContainer .card[data-id][data-type="Movie"]');
-        const ids = [];
-        cards.forEach(function (card) {
-            const id = card.getAttribute('data-id');
-            if (id) ids.push(id);
-        });
-        log('Found', cards.length, 'movie cards, extracted', ids.length, 'IDs:', ids);
-        return ids;
+    async function fetchCollectionItems(apiClient, collectionId) {
+        try {
+            const userId = apiClient.getCurrentUserId();
+            const serverUrl = apiClient.serverAddress();
+            const token = apiClient.accessToken();
+
+            const url = serverUrl + '/Users/' + userId + '/Items'
+                + '?ParentId=' + encodeURIComponent(collectionId)
+                + '&Fields=RunTimeTicks'
+                + '&Limit=10000';
+
+            log('Fetching collection items | URL:', url);
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': 'MediaBrowser Token="' + token + '"'
+                }
+            });
+
+            if (!response.ok) {
+                logWarn('Failed to fetch collection items | Status:', response.status, response.statusText);
+                return null;
+            }
+
+            const data = await response.json();
+            log('API returned TotalRecordCount:', data.TotalRecordCount, '| Items in response:', data.Items.length);
+            return data;
+        } catch (e) {
+            logWarn('Failed to fetch collection items', e);
+            return null;
+        }
     }
 
     function ticksToMinutes(ticks) {
@@ -91,35 +109,6 @@
         }
         logWarn('ApiClient not found on window or Emby namespace');
         return null;
-    }
-
-    async function fetchItemRuntime(apiClient, itemId) {
-        try {
-            const userId = apiClient.getCurrentUserId();
-            const serverUrl = apiClient.serverAddress();
-            const token = apiClient.accessToken();
-
-            const url = serverUrl + '/Users/' + userId + '/Items/' + encodeURIComponent(itemId);
-            log('Fetching item:', itemId, '| URL:', url);
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': 'MediaBrowser Token="' + token + '"'
-                }
-            });
-
-            if (!response.ok) {
-                logWarn('API request failed for', itemId, '| Status:', response.status, response.statusText);
-                return 0;
-            }
-            const data = await response.json();
-            const ticks = data.RunTimeTicks || 0;
-            const mins = Math.floor(ticks / 600000000);
-            log('Item:', data.Name || itemId, '| RunTimeTicks:', ticks, '|', mins, 'min');
-            return ticks;
-        } catch (e) {
-            logWarn('Failed to fetch runtime for', itemId, e);
-            return 0;
-        }
     }
 
     function insertRuntimeElement(text) {
@@ -207,18 +196,16 @@
         log('calculateAndDisplayRuntime triggered');
         if (!isCollectionPage()) return;
 
-        // Don't re-run if already displayed and cards haven't changed
-        const existing = document.getElementById(RUNTIME_ELEMENT_ID);
-        const itemIds = getItemIdsFromCards();
-
-        if (itemIds.length === 0) {
-            log('No movie cards found, skipping');
+        const collectionId = getCollectionId();
+        if (!collectionId) {
+            logWarn('Could not determine collection ID from URL');
             return;
         }
 
-        const currentKey = itemIds.join(',');
-        if (existing && existing.getAttribute('data-ids') === currentKey) {
-            log('Runtime already displayed for these items, skipping');
+        // Don't re-run if already displayed for this collection
+        const existing = document.getElementById(RUNTIME_ELEMENT_ID);
+        if (existing && existing.getAttribute('data-collection-id') === collectionId) {
+            log('Runtime already displayed for collection', collectionId, ', skipping');
             return;
         }
 
@@ -228,21 +215,40 @@
             return;
         }
 
-        log('Fetching runtimes for', itemIds.length, 'items...');
+        log('Fetching collection items from API for collection:', collectionId);
         insertRuntimeElement('Loading...');
         insertEndsAtElement('');
 
-        // Fetch all runtimes in parallel
-        const runtimePromises = itemIds.map(function (id) {
-            return fetchItemRuntime(apiClient, id);
-        });
-        const runtimes = await Promise.all(runtimePromises);
-        const totalTicks = runtimes.reduce(function (sum, t) { return sum + t; }, 0);
+        const data = await fetchCollectionItems(apiClient, collectionId);
+        if (!data) {
+            insertRuntimeElement('Error');
+            return;
+        }
+
+        const totalCount = data.TotalRecordCount;
+        const items = data.Items;
+
+        log('Collection has', totalCount, 'item(s) total;', items.length, 'fetched');
+        if (items.length < totalCount) {
+            logWarn('Fetched', items.length, 'of', totalCount, 'items — results may be incomplete');
+        }
+
+        // Sum runtimes; stop accumulating once we reach totalCount items
+        let counted = 0;
+        let totalTicks = 0;
+        for (const item of items) {
+            if (counted >= totalCount) break;
+            totalTicks += item.RunTimeTicks || 0;
+            counted++;
+        }
+
         const totalMinutes = ticksToMinutes(totalTicks);
         const formatted = formatRuntime(totalMinutes);
         const endsAt = formatEndsAt(totalMinutes);
 
         log('--- Results ---');
+        log('Total items (from API):', totalCount);
+        log('Items counted:', counted);
         log('Total ticks:', totalTicks);
         log('Total minutes:', totalMinutes);
         log('Formatted runtime:', formatted);
@@ -252,11 +258,11 @@
         insertRuntimeElement(formatted);
         insertEndsAtElement(endsAt);
 
-        // Tag with current IDs so we don't refetch unnecessarily
+        // Tag so we don't refetch for the same collection
         const el = document.getElementById(RUNTIME_ELEMENT_ID);
-        if (el) el.setAttribute('data-ids', currentKey);
+        if (el) el.setAttribute('data-collection-id', collectionId);
 
-        log('Done. Displayed', formatted, 'and', endsAt, 'for', itemIds.length, 'items');
+        log('Done. Displayed', formatted, 'and', endsAt, 'for', counted, '/', totalCount, 'items');
     }
 
     // Observe page changes since Jellyfin is a SPA
