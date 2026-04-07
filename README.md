@@ -17,7 +17,7 @@ The info is inserted after the content rating (e.g. PG-13) in the header bar, ma
 
 ### Option 1: Jellyfin JavaScript Injection Plugin (Recommended)
 
-1. Install the [Jellyfin JS Injection Plugin](https://github.com/danieladov/jellyfin-plugin-js-injection) on your server
+1. Install the [Jellyfin-JavaScript-Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) on your server
 2. Place `collection-runtime.js` in the plugin's configured scripts directory
 3. Restart Jellyfin
 
