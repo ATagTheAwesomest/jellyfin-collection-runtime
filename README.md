@@ -1,55 +1,66 @@
 # Jellyfin Collection Runtime
 
-A JavaScript snippet that adds **total runtime** and **"Ends at"** time to Jellyfin collection detail pages.
+A client-side JavaScript enhancement for Jellyfin that adds **total runtime** and **"Ends at"** time to collection detail pages. Loaded via the **Jellyfin Web JavaScript Injector** plugin.
 
-## What it does
+---
 
-When viewing a collection (e.g. a movie franchise), the script:
+## Features
 
-1. Detects movie items in the collection
-2. Fetches each movie's runtime via the Jellyfin API
-3. Displays the combined total runtime (e.g. `9h 32m`) in the collection header
-4. Displays an "Ends at" time based on the current time + total runtime
+- Displays combined total runtime (e.g. `9h 32m`) in the collection header
+- Displays an **"Ends at"** time based on the current time + total runtime
+- Info is inserted after the content rating in the header bar, matching native Jellyfin styling
+- Handles SPA navigation via hash polling and a `MutationObserver`
+- Caches results per collection to avoid redundant API calls
 
-The info is inserted after the content rating (e.g. PG-13) in the header bar, matching the native Jellyfin styling.
+---
+
+## Requirements
+
+| Requirement | Notes |
+|---|---|
+| [Jellyfin JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) | Loads custom scripts into the Jellyfin web client — paste JS directly in the plugin settings. **Requires adding the repo manually** (not in official catalog). |
+| [File Transformation Plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation) | Required by the JavaScript Injector to function. No configuration needed. **Requires adding the repo manually** (not in official catalog). |
+
+---
 
 ## Installation
 
-### Option 1: Jellyfin JavaScript Injection Plugin (Recommended)
+1. Go to **Dashboard → Plugins → Repositories** and add the custom repository URLs from each repo's README:
+   - [Jellyfin JavaScript Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector)
+   - [File Transformation Plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)
+2. Go to **Dashboard → Plugins → Catalog**, install both plugins, then restart Jellyfin.
+3. In the Jellyfin dashboard, go to **Dashboard → Plugins → JavaScript Injector**.
+4. Paste the full contents of `collection-runtime.js` into the script field.
+5. Save and hard-refresh the Jellyfin web client (`Ctrl+Shift+R`).
 
-1. Install the [Jellyfin-JavaScript-Injector](https://github.com/n00bcodr/Jellyfin-JavaScript-Injector) on your server
-2. Place `collection-runtime.js` in the plugin's configured scripts directory
-3. Restart Jellyfin
+---
 
-### Option 2: Tampermonkey / Userscript
+## Usage
 
-1. Install [Tampermonkey](https://www.tampermonkey.net/) in your browser
-2. Create a new userscript
-3. Set the `@match` to your Jellyfin server URL (e.g. `https://your-jellyfin-server/*`)
-4. Paste the contents of `collection-runtime.js` into the script body
-5. Save and enable
+1. Navigate to any collection detail page in Jellyfin.
+2. The total runtime and "Ends at" time appear automatically in the collection header.
 
-### Option 3: Web directory injection
+---
 
-1. Copy `collection-runtime.js` to your Jellyfin server's web directory
-2. Reference it in the `index.html` or via a plugin that supports custom JS loading
+## Customisation
+
+| Constant | Default | Description |
+|---|---|---|
+| `POLL_INTERVAL` | `1500` ms | How often the script checks for SPA navigation changes |
+
+---
 
 ## How it works
 
 - Uses the Jellyfin `ApiClient` (exposed globally by the web client) for authentication
 - Fetches `/Users/{userId}/Items/{itemId}` for each movie card in the collection
-- Sums `RunTimeTicks` (Jellyfin's internal unit: 1 tick = 100 nanoseconds) and converts to hours/minutes
+- Sums `RunTimeTicks` (1 tick = 100 nanoseconds) and converts to hours/minutes
 - Injects styled `<div class="mediaInfoItem">` elements into the existing header
-- Handles SPA navigation via hash polling and a MutationObserver
+- Handles SPA navigation via hash polling and a `MutationObserver`
 - Caches results per collection to avoid redundant API calls
 
-## Logging
+---
 
-The script logs verbosely to the browser console with a `[CollectionRuntime]` prefix, including:
+## Console logging
 
-- Page detection results
-- Card discovery and item IDs
-- API requests and per-item runtimes
-- Final totals and skip reasons
-
-Open your browser's dev tools (F12 → Console) to see the output.
+The script logs to the browser console with a `[CollectionRuntime]` prefix. Open **F12 → Console** to observe it.
