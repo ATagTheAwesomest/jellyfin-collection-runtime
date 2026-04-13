@@ -78,22 +78,54 @@
 
     function formatRuntime(totalMinutes) {
         if (totalMinutes <= 0) return '0m';
-        const hours = Math.floor(totalMinutes / 60);
+        
+        const days = Math.floor(totalMinutes / 1440); // 1440 minutes in a day
+        const hours = Math.floor((totalMinutes % 1440) / 60);
         const minutes = totalMinutes % 60;
-        if (hours > 0 && minutes > 0) return hours + 'h ' + minutes + 'm';
-        if (hours > 0) return hours + 'h';
-        return minutes + 'm';
+        
+        let parts = [];
+        if (days > 0) parts.push(days + 'd');
+        if (hours > 0) parts.push(hours + 'h');
+        if (minutes > 0) parts.push(minutes + 'm');
+        
+        return parts.length > 0 ? parts.join(' ') : '0m';
     }
 
     function formatEndsAt(totalMinutes) {
         const now = new Date();
         const end = new Date(now.getTime() + totalMinutes * 60000);
+        
+        // Calculate days difference
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        const daysDiff = Math.floor((startOfEndDay - startOfToday) / (1000 * 60 * 60 * 24));
+        
+        // Format time
         let hours = end.getHours();
         const mins = end.getMinutes();
         const ampm = hours >= 12 ? 'PM' : 'AM';
         hours = hours % 12 || 12;
         const minsStr = mins < 10 ? '0' + mins : '' + mins;
-        return 'Ends at ' + hours + ':' + minsStr + ' ' + ampm;
+        const timeStr = hours + ':' + minsStr + ' ' + ampm;
+        
+        // Format date portion based on how far out it is
+        if (daysDiff === 0) {
+            return 'Ends at ' + timeStr;
+        } else if (daysDiff === 1) {
+            return 'Ends tomorrow at ' + timeStr;
+        } else if (daysDiff < 7) {
+            // Show day of week for less than a week
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            return 'Ends ' + days[end.getDay()] + ' at ' + timeStr;
+        } else {
+            // Show full date for a week or more
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const dateStr = months[end.getMonth()] + ' ' + end.getDate();
+            if (end.getFullYear() !== now.getFullYear()) {
+                return 'Ends ' + dateStr + ', ' + end.getFullYear() + ' at ' + timeStr;
+            }
+            return 'Ends ' + dateStr + ' at ' + timeStr;
+        }
     }
 
     function getApiClient() {
