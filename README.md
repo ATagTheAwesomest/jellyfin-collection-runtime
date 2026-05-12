@@ -1,5 +1,11 @@
 # Jellyfin Collection Runtime
 
+> [!WARNING]
+> This standalone repo is deprecated and now archived. Active organisation and future discovery live in the `jellyfin-web-injected-enhancements` super-repo in this workspace.
+
+> [!IMPORTANT]
+> For new installs, use the consolidated script list and docs in `jellyfin-web-injected-enhancements` instead of treating this standalone repo as the primary source.
+
 A client-side JavaScript enhancement for Jellyfin that adds **total runtime** and **"Ends at"** time to collection detail pages. Loaded via the **Jellyfin Web JavaScript Injector** plugin.
 
 ---
